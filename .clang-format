@@ -1,0 +1,13 @@
+---
+BasedOnStyle: Google
+IndentWidth: 2
+ColumnLimit: 80
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: false
+AlignEscapedNewlines: true
+AllowShortBlocksOnASingleLine: true
+AllowShortFunctionsOnASingleLine: InlineOnly
+DerivePointerAlignment: false
+PointerAlignment: Left
+SortUsingDeclarations: true
+---

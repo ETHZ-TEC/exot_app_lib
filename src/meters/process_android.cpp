@@ -1,0 +1,67 @@
+/**
+ * @file meters/process_android.cpp
+ * @author     Philipp Miedl
+ * @brief      Implementation of the android foreground process metering module.
+ */
+
+#if defined(__linux__) && defined(__ANDROID__) && !defined(__x86_64__)
+
+#include "../../include/exot/meters/process_android.h"
+#include <exot/meters/process_android.h>
+#include <jni.h>
+
+namespace exot::modules {
+
+process_android::process_android(settings& conf)
+    : conf_{validate_settings(conf)} {
+}
+
+process_android::~process_android() {
+  debug_log_->info("Detaching process measurement thread.");
+}
+
+typename process_android::return_type process_android::measure() {
+  JavaVM* jvm = reinterpret_cast<JavaVM*>(conf_.jvm);
+  // int getEnvStat = conf_.jvm->GetEnv((void**) &jenv_, conf_.jniversion);
+  int getEnvStat =
+      jvm->GetEnv((void**)&jenv_, static_cast<jint>(conf_.jniversion));
+  if (getEnvStat == JNI_EDETACHED) {
+    // debug_log_->info( "GetEnv: not attached");
+    // if (conf_.jvm->AttachCurrentThread(&jenv_, NULL) != 0) {
+    if (jvm->AttachCurrentThread(&jenv_, NULL) != 0) {
+      debug_log_->info("Failed to attach");
+    }
+  } else if (getEnvStat == JNI_OK) {
+    //
+  } else if (getEnvStat == JNI_EVERSION) {
+    debug_log_->info("GetEnv: version not supported");
+  }
+
+  // jstring processname = (jstring) (jenv_->CallObjectMethod(*conf_.jinstance,
+  // *conf_.jmid));
+  jstring processname = (jstring)(
+      jenv_->CallObjectMethod(reinterpret_cast<jobject>(conf_.jinstance),
+                              reinterpret_cast<jmethodID>(conf_.jmid)));
+  std::string procname(jenv_->GetStringUTFChars(processname, 0));
+
+  if (jenv_->ExceptionCheck()) { jenv_->ExceptionDescribe(); }
+  // conf_.jvm->DetachCurrentThread();
+  jvm->DetachCurrentThread();
+  return procname;
+}
+
+std::vector<std::string> process_android::header() {
+  std::vector<std::string> description;
+  description.push_back(exot::utilities::generate_header(
+      conf_.name(), "ForegroundActivity", 0, DefaultUnits::process));
+  return description;
+}
+
+process_android::settings process_android::validate_settings(settings& conf) {
+  /* TODO If no JNE pointer is provided, die gracefully... */
+  return conf;
+}
+
+}  // namespace exot::modules
+
+#endif

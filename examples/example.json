@@ -1,0 +1,56 @@
+{
+    "generator": {
+        "cores": [0, 2, 4, 6],
+        "policy": "round_robin",
+        "priority": 98,
+        "worker_priority": 90
+    },
+    "logging": {
+        "append_governor_to_files": false,
+        "async": true,
+        "async_size": 4096,
+        "debug_log_filename": null,
+        "app_log_filename": null,
+        "log_level": "debug",
+        "provide_platform_identification": true,
+        "rotating_logs": false,
+        "rotating_logs_count": 10,
+        "rotating_logs_size": 104857600,
+        "timestamp_files": false
+    },
+    "host": {
+        "policy": "other",
+        "pinning": 0,
+        "priority": 90,
+        "period": 0.1,
+        "log_header": true,
+        "start_immediately": true
+    },
+    "frequency_rel": {
+        "cores": null
+    },
+    "frequency_sysfs": {
+        "cores": null,
+        "strict": true,
+        "source": "scaling_cur_freq"
+    },
+    "power_msr": {
+        "rapl_domains": ["pkg", "pp0", "pp1", "sys"]
+    },
+    "thermal_msr": {
+        "cores": [0, 1],
+        "package": true
+    },
+    "thermal_sysfs": {
+        "zones": [0, 1, 2]
+    },
+    "utilisation_procfs": {
+        "cores": null,
+        "raw": false,
+        "states": ["user", "idle"]
+    },
+    "schedule_reader": {
+        "input_file": "src.sched",
+        "reading_from_file": false
+    }
+}

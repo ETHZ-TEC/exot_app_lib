@@ -1,0 +1,19 @@
+[submodule "vendor/spdlog"]
+	path = vendor/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "vendor/fmt"]
+	path = vendor/fmt
+	url = https://github.com/fmtlib/fmt.git
+[submodule "vendor/doctest"]
+	path = vendor/doctest
+	url = https://github.com/onqtam/doctest.git
+[submodule "vendor/clipp"]
+	path = vendor/clipp
+	url = https://github.com/muellan/clipp.git
+[submodule "vendor/json"]
+	path = vendor/json
+	url = https://github.com/nlohmann/json.git
+[submodule "tools/docker"]
+	path = tools/docker
+	url = git@gitlab.ethz.ch:tec/public/exot/compilation.git
+	branch = master
