@@ -1,3 +1,31 @@
+// Copyright (c) 2015-2020, Swiss Federal Institute of Technology (ETH Zurich)
+// All rights reserved.
+// 
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+// 
+// * Redistributions of source code must retain the above copyright notice, this
+//   list of conditions and the following disclaimer.
+// 
+// * Redistributions in binary form must reproduce the above copyright notice,
+//   this list of conditions and the following disclaimer in the documentation
+//   and/or other materials provided with the distribution.
+// 
+// * Neither the name of the copyright holder nor the names of its
+//   contributors may be used to endorse or promote products derived from
+//   this software without specific prior written permission.
+// 
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+// 
 /**
  * @file components/meter_host.h
  * @author     Bruno Klopott
@@ -70,13 +98,18 @@ class meter_host : public Meters...,
   struct settings : public exot::utilities::configurable<settings>,
                     Meters::settings... {
     Duration period{std::chrono::milliseconds{10}};
-    unsigned cpu_to_pin{std::thread::hardware_concurrency() - 1};
-    unsigned priority{90};
-    policy_type policy{policy_type::Other};  //! workers' scheduling policy
+
+    /// @defgroup meter_host_settings Meter host's master thread settings
+    /// @{
+    unsigned host_pinning{0};                     //! core to pin host to
+    bool should_pin_host{false};                  //! should pin host?
+    unsigned host_priority{90};                   //! host's priority
+    policy_type host_policy{policy_type::Other};  //! host's sched. policy
+    /// @}
 
     using base_t = exot::utilities::configurable<settings>;
 
-    const char* name() const { return "host"; }
+    const char* name() const { return "meter"; }
 
     /* @brief The combining settings structure needs to overload this to allow
      * initialising JSON configs in inherited classes. */
@@ -97,14 +130,12 @@ class meter_host : public Meters...,
     void configure() {
       base_t::bind_and_describe_data("period", period,
                                      "sampling period |s|, e.g. 1.0e-3");
-      base_t::bind_and_describe_data("pinning", cpu_to_pin),
-          "meter host core pinning |uint|, e.g. 1";
       base_t::bind_and_describe_data(
-          "priority", priority,
-          "scheduling priority |uint|, in range [0, 99], e.g. 99");
+          "host_priority", host_priority,
+          "host's scheduling priority |uint|, in range [0, 99], e.g. 99");
       base_t::bind_and_describe_data(
-          "policy", policy,
-          "scheduling policy |str, policy_type|, e.g. \"round_robin\"");
+          "host_policy", host_policy,
+          "host's scheduling policy |str, policy_type|, e.g. \"round_robin\"");
 
       static_assert(
           (exot::utilities::is_configurable_v<Meters::settings> && ...),
@@ -125,9 +156,13 @@ class meter_host : public Meters...,
    * @param      conf  The settings object
    */
   meter_host(settings& conf) : Meters(conf)..., conf_{conf} {
-    debug_log_->info("[host] using period: {}",
+    debug_log_->info("[meter] using period: {}",
                      exot::utilities::duration_to_string(conf_.period));
-    debug_log_->info("[host] will run pinned to {}", conf_.cpu_to_pin);
+    if (conf_.should_pin_host) {
+      debug_log_->info("[meter] will run pinned to {}", conf_.host_pinning);
+    } else {
+      debug_log_->info("[meter] will run not pinned");
+    }
   }
 
   /**
@@ -137,10 +172,13 @@ class meter_host : public Meters...,
     auto until  = [this]() { return !global_state_->is_stopped(); };
     auto action = [this]() { out_.write(measure()); };
 
-    exot::utilities::ThreadTraits::set_affinity(conf_.cpu_to_pin);
-    exot::utilities::ThreadTraits::set_scheduling(conf_.policy, conf_.priority);
+    if (conf_.should_pin_host)
+      exot::utilities::ThreadTraits::set_affinity(conf_.host_pinning);
 
-    debug_log_->info("[host] running on {}", exot::utilities::thread_info());
+    exot::utilities::ThreadTraits::set_scheduling(conf_.host_policy,
+                                                  conf_.host_priority);
+
+    debug_log_->info("[meter] running on {}", exot::utilities::thread_info());
 
     while (!global_state_->is_started()) {
       std::this_thread::sleep_for(std::chrono::milliseconds{100});
@@ -174,9 +212,9 @@ class meter_host : public Meters...,
 
   ~meter_host() {
     if constexpr (use_statistics) {
-      debug_log_->info("[host] timing offset statistics: {}",
+      debug_log_->info("[meter] timing offset statistics: {}",
                        timer_.offset_statistics());
-      debug_log_->info("[host] timing interval statistics: {}",
+      debug_log_->info("[meter] timing interval statistics: {}",
                        timer_.interval_statistics());
     }
   }

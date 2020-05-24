@@ -1,3 +1,31 @@
+// Copyright (c) 2015-2020, Swiss Federal Institute of Technology (ETH Zurich)
+// All rights reserved.
+// 
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+// 
+// * Redistributions of source code must retain the above copyright notice, this
+//   list of conditions and the following disclaimer.
+// 
+// * Redistributions in binary form must reproduce the above copyright notice,
+//   this list of conditions and the following disclaimer in the documentation
+//   and/or other materials provided with the distribution.
+// 
+// * Neither the name of the copyright holder nor the names of its
+//   contributors may be used to endorse or promote products derived from
+//   this software without specific prior written permission.
+// 
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+// 
 /**
  * @file utilities/istream.h
  * @author     Bruno Klopott
@@ -10,6 +38,7 @@
 #include <chrono>    // for duration
 #include <istream>   // for istream
 #include <iterator>  // for istream_iterator, back_inserter
+#include <sstream>   // for istringstream
 #include <tuple>     // for tuple, tuple_cat
 
 #include <exot/utilities/helpers.h>
@@ -75,6 +104,28 @@ std::tuple<Current, Rest...> read_tuple(
   }
 }
 
+namespace details {
+
+/**
+ * @brief      Reads a token from an input stream into a input stringstream
+ *
+ * @param      stream       The input stream
+ *
+ * @tparam     CharT        Character type used by the stream
+ * @tparam     CharTraitsT  Character traits used by the stream
+ *
+ * @return     A single token as a stringstream
+ */
+template <typename CharT, typename CharTraitsT>
+inline std::basic_istringstream<CharT> read_into_stringstream(
+    std::basic_istream<CharT, CharTraitsT>& stream) {
+  std::basic_string<CharT> token;
+  stream >> token;
+  return std::move(std::basic_istringstream<CharT>{token});
+}
+
+}  // namespace details
+
 }  // namespace exot::utilities
 
 /**
@@ -120,10 +171,19 @@ typename std::enable_if<(exot::utilities::is_iterable<T>::value &&
                          exot::utilities::has_push_back<T>::value),
                         std::basic_istream<CharT, CharTraitsT>&>::type&
 operator>>(std::basic_istream<CharT, CharTraitsT>& istream, T& container) {
-  using iterator_type =
-      std::istream_iterator<typename T::value_type, CharT, CharTraitsT>;
-  std::copy(iterator_type(istream), iterator_type(),
-            std::back_inserter(container));
+  using value_type  = typename T::value_type;
+  using string_type = std::basic_string<CharT>;
+  using stream_type = std::basic_istringstream<CharT>;
+
+  static constexpr auto delimiter = CharT{','};
+
+  auto stream = exot::utilities::details::read_into_stringstream(istream);
+  for (auto [token, input] = std::make_tuple(value_type{}, string_type{});  //
+       std::getline(stream, input, delimiter);) {
+    stream_type{input} >> token;
+    container.push_back(token);
+  }
+
   return istream;
 };
 
@@ -145,8 +205,16 @@ template <typename T, size_t N, typename CharT, typename CharTraitsT>
 std::basic_istream<CharT, CharTraitsT>& operator>>(
     std::basic_istream<CharT, CharTraitsT>& istream,
     std::array<T, N>& container) {
-  exot::utilities::const_for<0, N>(
-      [&](const auto I) { istream >> container.at(I); });
+  using string_type = std::basic_string<CharT>;
+  using stream_type = std::basic_istringstream<CharT>;
+
+  static constexpr auto delimiter = CharT{','};
+
+  auto stream = exot::utilities::details::read_into_stringstream(istream);
+  for (auto [i, input] = std::make_tuple(size_t{0}, string_type{});
+       std::getline(stream, input, delimiter) && i < N; ++i) {
+    stream_type{input} >> container.at(i);
+  }
 
   return istream;
 };

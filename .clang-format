@@ -10,4 +10,5 @@ AllowShortFunctionsOnASingleLine: InlineOnly
 DerivePointerAlignment: false
 PointerAlignment: Left
 SortUsingDeclarations: true
+IncludeBlocks: Preserve
 ---

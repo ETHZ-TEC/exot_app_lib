@@ -1,3 +1,31 @@
+# Copyright (c) 2015-2020, Swiss Federal Institute of Technology (ETH Zurich)
+# All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+# 
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+# 
+# * Neither the name of the copyright holder nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# 
 #------------------------------------------------------------------------------
 # The build specification for the library
 cmake_minimum_required(VERSION 3.6)
@@ -167,8 +195,7 @@ set(components_headers
 	${include_subdir}/components/domain_adapter.h
 	${include_subdir}/components/function_nodes.h
 	${include_subdir}/components/generator_host.h
-	${include_subdir}/components/loadgen_mt.h
-	${include_subdir}/components/loadgen_ut.h
+	${include_subdir}/components/generator_ffb.h
 	${include_subdir}/components/logger.h
 	${include_subdir}/components/meter_host.h
 	${include_subdir}/components/meter_host_logger.h
@@ -190,8 +217,6 @@ set(meters_headers
 	${include_subdir}/meters/cache_fp.h
 	${include_subdir}/meters/cache_fr.h
 	${include_subdir}/meters/cache_l1.h
-	${include_subdir}/meters/cache_pp.h
-	${include_subdir}/meters/cache_ristenpart.h
 	${include_subdir}/meters/fan_sysfs.h
 	${include_subdir}/meters/fan_procfs.h
 	${include_subdir}/meters/frequency.h
@@ -213,13 +238,15 @@ set(meters_headers
 set(generators_headers
 	${include_subdir}/generators/base.h
 	${include_subdir}/generators/base_bitset.h
+	${include_subdir}/generators/base_ffb.h
 	${include_subdir}/generators/base_shared_memory.h
 	${include_subdir}/generators/cache_maurice_mt.h
-	${include_subdir}/generators/cache_ristenpart_st.h
 	${include_subdir}/generators/cache_st.h
 	${include_subdir}/generators/inactive_mt.h
 	${include_subdir}/generators/rdseed_mt.h
-	${include_subdir}/generators/utilisation_mt.h)
+	${include_subdir}/generators/utilisation_mt.h
+	${include_subdir}/generators/utilisation_ut.h
+	${include_subdir}/generators/utilisation_ffb_conservative.h)
 
 set(modules_headers "")
 list (APPEND modules_headers
@@ -242,11 +269,11 @@ set(sources
 
 set(modules_sources
 	${source_dir}/generators/cache_maurice_mt.cpp
-	${source_dir}/generators/cache_ristenpart_st.cpp
 	${source_dir}/generators/rdseed_mt.cpp
 	${source_dir}/generators/utilisation_mt.cpp
+  ${source_dir}/generators/utilisation_ffb_conservative.cpp
+	${source_dir}/generators/utilisation_ut.cpp
 	${source_dir}/meters/cache_l1.cpp
-	${source_dir}/meters/cache_ristenpart.cpp
 	${source_dir}/meters/frequency_rel.cpp
 	${source_dir}/meters/frequency_sysfs.cpp
 	${source_dir}/meters/power_msr.cpp
@@ -365,7 +392,7 @@ target_compile_definitions(exot PUBLIC
 	EXOT_TIME_SOURCE=${EXOT_TIME_SOURCE})
 
 set(GENERATOR_HOST_PERFORM_VALIDATION         0 CACHE STRING "Perform token validation?")
-set(GENERATOR_HOST_PROVIDE_TIMING_STATISTICS  0 CACHE STRING "Provide time keeper statistics?")
+set(GENERATOR_HOST_PROVIDE_TIMING_STATISTICS  1 CACHE STRING "Provide time keeper statistics?")
 set(METER_SET_AFFINITY                        1 CACHE STRING "Set meter host affinity?")
 set(METER_USE_STATISTICS                      0 CACHE STRING "Provide time keeper statistics?")
 set(METER_LOG_SYSTEM_TIME                     0 CACHE STRING "Log system time?")

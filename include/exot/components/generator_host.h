@@ -1,3 +1,31 @@
+// Copyright (c) 2015-2020, Swiss Federal Institute of Technology (ETH Zurich)
+// All rights reserved.
+// 
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+// 
+// * Redistributions of source code must retain the above copyright notice, this
+//   list of conditions and the following disclaimer.
+// 
+// * Redistributions in binary form must reproduce the above copyright notice,
+//   this list of conditions and the following disclaimer in the documentation
+//   and/or other materials provided with the distribution.
+// 
+// * Neither the name of the copyright holder nor the names of its
+//   contributors may be used to endorse or promote products derived from
+//   this software without specific prior written permission.
+// 
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+// 
 /**
  * @file components/generator_host.h
  * @author     Bruno Klopott
@@ -97,15 +125,26 @@ class generator_host : public Generator,
                     public Generator::settings {
     using base_t = exot::utilities::configurable<settings>;
 
-    std::set<unsigned> cores;                       //! workers' allocated cores
+    /// @defgroup gen_worker_settings Generator host's worker settings
+    /// @{
+    std::set<unsigned> cores;       //! workers' allocated cores
+    bool should_pin_workers{true};  //! should pin the worker threads?
     policy_type worker_policy{policy_type::Other};  //! workers' sched. policy
-    policy_type self_policy{policy_type::Other};    //! this node's policy
-    unsigned worker_priority{90u};   //! workers' scheduling priority
-    unsigned self_priority{99u};     //! this node's priority
+    unsigned worker_priority{90u};  //! workers' scheduling priority
+    /// @}
+
+    /// @defgroup gen_host_settings Generator host's master thread settings
+    /// @{
+    unsigned host_pinning{//! cpu to pin host's master thread to
+                          std::thread::hardware_concurrency() - 1};
+    bool should_pin_host{true};  //! should pin the master thread?
+    policy_type host_policy{policy_type::Other};  //! this node's policy
+    unsigned host_priority{99u};                  //! this node's priority
+    /// @}
+
     bool use_busy_sleep{false};      //! does the host use busy sleep?
     bool busy_sleep_yield{false};    //! busy sleep yields calling thread
     unsigned start_check_period{1};  //! how often to check if started in µs
-    unsigned cpu_to_pin{std::thread::hardware_concurrency() - 1};
 
     static_assert(
         exot::utilities::is_configurable_v<typename Generator::settings>,
@@ -130,24 +169,32 @@ class generator_host : public Generator,
       base_t::bind_and_describe_data(
           "cores", cores, "cores to pin workers to |uint[]|, e.g. [0, 2]");
       base_t::bind_and_describe_data(
-          "cpu_to_pin", cpu_to_pin,
-          "generator host core pinning |uint|, e.g. 5");
-      base_t::bind_and_describe_data(
-          "start_check_period", start_check_period,
-          "state change detection update period |uint, µs|, e.g. 100");
+          "should_pin_workers", should_pin_workers,
+          "should pin the workers? |bool|, default 'true'");
       base_t::bind_and_describe_data("worker_policy", worker_policy,
                                      "scheduling policy of the workers |str, "
-                                     "policy_type|, e.g. \"round_robin\"");
-      base_t::bind_and_describe_data("self_policy", self_policy,
-                                     "scheduling policy of the host |str, "
                                      "policy_type|, e.g. \"round_robin\"");
       base_t::bind_and_describe_data(
           "worker_priority", worker_priority,
           "scheduling priority of the workers |uint|, "
           "in range [0, 99], e.g. 99");
+
       base_t::bind_and_describe_data(
-          "self_priority", self_priority,
+          "host_pinning", host_pinning,
+          "generator host core pinning |uint|, e.g. 5");
+      base_t::bind_and_describe_data(
+          "should_pin_host", should_pin_host,
+          "should pin the host? |bool|, default 'true'");
+      base_t::bind_and_describe_data("host_policy", host_policy,
+                                     "scheduling policy of the host |str, "
+                                     "policy_type|, e.g. \"round_robin\"");
+      base_t::bind_and_describe_data(
+          "host_priority", host_priority,
           "scheduling priority of the host |uint|, in range [0, 99], e.g. 99");
+
+      base_t::bind_and_describe_data(
+          "start_check_period", start_check_period,
+          "state change detection update period |uint, µs|, e.g. 100");
       base_t::bind_and_describe_data("use_busy_sleep", use_busy_sleep,
                                      "should use busy sleep loop? |bool|");
       base_t::bind_and_describe_data(
@@ -172,7 +219,7 @@ class generator_host : public Generator,
     local_state_  = std::make_shared<state_type>();
 
     if constexpr (host_options::set_affinity) {
-      if (conf_.cpu_to_pin >= std::thread::hardware_concurrency()) {
+      if (conf_.host_pinning >= std::thread::hardware_concurrency()) {
         throw std::logic_error("Supplied wrong CPU to pin the generator_host");
       }
     }
@@ -207,8 +254,12 @@ class generator_host : public Generator,
           index, core);
 
       worker_threads_.emplace_back(worker_type(
-          local_state_->get(), {std::ref(barrier_)},
-          {core, conf_.worker_policy, conf_.worker_priority},
+          local_state_->get(),
+          // config for SynchronisationPolicy->BarrierSynchronisation
+          {std::ref(barrier_)},
+          // config for ThreadingPolicy->SpecialisedThreads
+          {core, conf_.should_pin_workers, conf_.worker_policy,
+           conf_.worker_priority},
           /* Take core and index by value, this object by reference. */
           [this, core, index] {
             /* Safely access the `worker_bits_` bitset and set the `enable`
@@ -281,11 +332,12 @@ class generator_host : public Generator,
     std::once_flag once;
 
     if constexpr (host_options::set_affinity) {
-      exot::utilities::ThreadTraits::set_affinity(conf_.cpu_to_pin);
+      if (conf_.should_pin_host)
+        exot::utilities::ThreadTraits::set_affinity(conf_.host_pinning);
     }
 
-    exot::utilities::ThreadTraits::set_scheduling(conf_.self_policy,
-                                                  conf_.self_priority);
+    exot::utilities::ThreadTraits::set_scheduling(conf_.host_policy,
+                                                  conf_.host_priority);
 
     debug_log_->info("[generator_host] running on {}",
                      exot::utilities::thread_info());

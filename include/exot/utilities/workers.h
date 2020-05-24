@@ -1,3 +1,31 @@
+// Copyright (c) 2015-2020, Swiss Federal Institute of Technology (ETH Zurich)
+// All rights reserved.
+// 
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+// 
+// * Redistributions of source code must retain the above copyright notice, this
+//   list of conditions and the following disclaimer.
+// 
+// * Redistributions in binary form must reproduce the above copyright notice,
+//   this list of conditions and the following disclaimer in the documentation
+//   and/or other materials provided with the distribution.
+// 
+// * Neither the name of the copyright holder nor the names of its
+//   contributors may be used to endorse or promote products derived from
+//   this software without specific prior written permission.
+// 
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+// 
 /**
  * @file utilities/workers.h
  * @author     Bruno Klopott
@@ -18,14 +46,6 @@
 namespace exot::utilities {
 
 inline namespace workers {
-/**
- * TODO: Work should also accept arguments, or maybe should be possible to pass
- * a promise, so that the worker can set it, which would provide another
- * communication mechanism with the workers. Possible implementation would be to
- * have a Work class, which is templated with return type and argument types,
- * and returns a promise. Helper functions would be std::invoke and
- * std::invoke_result. */
-
 /**
  * @brief      Basic worker
  *
@@ -348,11 +368,37 @@ struct BasicThreads {
   inline void enforce() {}
 };
 
+/**
+ * @brief Workers with pinned threads and scheduling policies
+ *
+ */
+struct PinnedThreads {
+  struct Configuration {
+    const unsigned int pin;                          //! Core to pin
+    const exot::utilities::SchedulingPolicy policy;  //! Scheduling policy
+    const unsigned int priority;                     //! Scheduling priority
+  };
+  Configuration conf_;
+
+  PinnedThreads(Configuration& conf) : conf_(conf){};
+  virtual ~PinnedThreads() = default;
+
+  inline void enforce() {
+    ThreadTraits::set_affinity(conf_.pin);
+    ThreadTraits::set_scheduling(conf_.policy, conf_.priority);
+  };
+};
+
+/**
+ * @brief Workers with pinned/un-pinned threads and scheduling policies
+ *
+ */
 struct SpecialisedThreads {
   struct Configuration {
-    const unsigned int pin;
-    const exot::utilities::SchedulingPolicy policy;
-    const unsigned int priority;
+    const unsigned int pin;                          //! Core to pin
+    const bool should_pin;                           //! Should pin?
+    const exot::utilities::SchedulingPolicy policy;  //! Scheduling policy
+    const unsigned int priority;                     //! Scheduling priority
   };
   Configuration conf_;
 
@@ -360,7 +406,7 @@ struct SpecialisedThreads {
   virtual ~SpecialisedThreads() = default;
 
   inline void enforce() {
-    ThreadTraits::set_affinity(conf_.pin);
+    if (conf_.should_pin) ThreadTraits::set_affinity(conf_.pin);
     ThreadTraits::set_scheduling(conf_.policy, conf_.priority);
   };
 };

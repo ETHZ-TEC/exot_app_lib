@@ -1,9 +1,14 @@
 {
     "generator": {
-        "cores": [0, 2, 4, 6],
-        "policy": "round_robin",
-        "priority": 98,
-        "worker_priority": 90
+      "host_pinning": 0,
+      "should_pin_host": true,
+      "cores": [0, 2, 4, 6],
+      "host_policy": "round_robin",
+      "host_priority": 99,
+      "worker_priority": 98,
+      "worker_policy": "round_robin",
+      "should_pin_workers": true,
+      "start_check_period": 25
     },
     "logging": {
         "append_governor_to_files": false,
@@ -18,10 +23,10 @@
         "rotating_logs_size": 104857600,
         "timestamp_files": false
     },
-    "host": {
-        "policy": "other",
-        "pinning": 0,
-        "priority": 90,
+    "meter": {
+        "host_policy": "other",
+        "host_pinning": 0,
+        "host_priority": 90,
         "period": 0.1,
         "log_header": true,
         "start_immediately": true
